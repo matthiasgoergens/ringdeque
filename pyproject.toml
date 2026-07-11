@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ringdeque"
+version = "0.1.0a0"
+description = "A growable ring-buffer deque: collections.deque API with O(1) indexing and O(k) slicing"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "Matthias Görgens", email = "matthias.goergens@gmail.com" }]
+keywords = ["deque", "ring buffer", "circular buffer", "queue", "data structure", "vecdeque"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: C",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/matthiasgoergens/ringdeque"
+
+[project.optional-dependencies]
+test = ["pytest", "hypothesis"]
+
+[tool.setuptools]
+packages = ["ringdeque"]
+package-dir = { "" = "src" }
