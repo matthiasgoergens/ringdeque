@@ -21,18 +21,25 @@ when empty. A growable ring buffer (like Rust's `VecDeque` or C++'s
 `std::deque` promise) keeps end-operations fast while making the whole
 container indexable.
 
-Measured against `collections.deque` (paired randomized-block
-benchmarks, details in the repo):
+Measured with paired randomized-block benchmarks against
+`collections.deque` and `arraydeque` (full method, caveats, and raw
+data in `bench/RESULTS.md`):
 
-- **random access**: ~1000× faster at n = 10⁶ (O(n) → O(1))
-- **small deques**: 6–9× less memory below ~64 elements (88 B empty
-  vs 760 B)
-- **bounded deques** (`maxlen=`): never more memory (allocation is
-  clamped to `maxlen + 1` slots), better p99/p99.9 append tails
-- **steady-state queue throughput**: parity (within ~2%)
-- honest costs: growing from empty is ~10–30% slower (a ring
-  reallocates; the block list never does), and single-op worst case is
-  O(n) during a growth copy — amortised O(1), and worst-case O(1) in
+- **random access**: O(n) → O(1); ~three orders of magnitude at
+  n = 10⁶
+- **small deques**: 88 B empty vs the stdlib's 760 B (6–9× less
+  memory below ~64 elements)
+- **bounded deques** (`maxlen=`): allocation clamped to `maxlen + 1`
+  slots — never more memory than the stdlib — and steady-state append
+  tails at stdlib level, where the array-with-slack design
+  (`arraydeque`) measures 2.5–2.9× worse p99.9/max from perpetual
+  recenter-copies
+- **steady-state queue throughput**: within ~5% of the stdlib
+- honest costs: growing from empty is ~10% slower and growth
+  reallocations produce rare-but-large latency spikes (the stdlib's
+  block design instead pays a small malloc every 64 appends — a
+  different tail shape, not a free lunch); single-op worst case is
+  O(n) during a growth copy, amortised O(1), and worst-case O(1) at
   the bounded steady state.
 
 ## Compatibility

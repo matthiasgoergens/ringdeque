@@ -187,8 +187,11 @@ ring_copy_to_contiguous(PyObject **src, Py_ssize_t allocated,
     }
 }
 
-/* list-style over-allocation: needed + needed/8 + 6, rounded down to a
-   multiple of 4. */
+/* Geometric doubling with a small floor.  A standalone container can
+   afford up-to-2x slack for unbounded deques (bounded deques are
+   clamped to maxlen + 1 regardless); doubling halves the number of
+   growth copies compared to list-style 1.125x growth, which measurably
+   improves append throughput and growth-latency tails. */
 static Py_ssize_t
 rd_calculate_allocation(Py_ssize_t min_needed)
 {
@@ -196,9 +199,12 @@ rd_calculate_allocation(Py_ssize_t min_needed)
         return 0;
     }
     size_t needed = (size_t)min_needed;
-    size_t new_allocated = (needed + (needed >> 3) + 6) & ~(size_t)3;
-    if (new_allocated > (size_t)PY_SSIZE_T_MAX) {
-        return -1;
+    size_t new_allocated = 8;
+    while (new_allocated < needed) {
+        if (new_allocated > ((size_t)PY_SSIZE_T_MAX >> 1)) {
+            return -1;
+        }
+        new_allocated <<= 1;
     }
     return (Py_ssize_t)new_allocated;
 }
