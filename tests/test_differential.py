@@ -43,6 +43,18 @@ class Op:
             return len(d)
         if self.name == "contains":
             return self.args[0] in d
+        if self.name == "add_self":
+            return list(d + d)
+        if self.name == "iadd":
+            d += self.args[0]
+            return None
+        if self.name == "mul":
+            return list(d * self.args[0])
+        if self.name == "rmul":
+            return list(self.args[0] * d)
+        if self.name == "imul":
+            d *= self.args[0]
+            return None
         return getattr(d, self.name)(*self.args)
 
 
@@ -67,6 +79,11 @@ OPS = st.one_of(
     st.builds(Op, st.just("len")),
     st.builds(Op, st.just("contains"), ELEMENTS),
     st.builds(Op, st.just("index"), ELEMENTS),
+    st.builds(Op, st.just("add_self")),
+    st.builds(Op, st.just("iadd"), st.lists(ELEMENTS, max_size=4)),
+    st.builds(Op, st.just("mul"), st.integers(-2, 4)),
+    st.builds(Op, st.just("rmul"), st.integers(-2, 4)),
+    st.builds(Op, st.just("imul"), st.integers(-2, 4)),
 )
 
 

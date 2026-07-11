@@ -801,6 +801,94 @@ rd_len(PyObject *op)
     return ((ringdeque *)op)->size;
 }
 
+static PyObject *rd_copy_method(PyObject *op, PyObject *ignored);
+
+static PyObject *
+rd_concat(PyObject *op, PyObject *other)
+{
+    if (!ringdeque_Check(other)) {
+        PyErr_Format(PyExc_TypeError,
+                     "can only concatenate deque (not \"%.200s\") to deque",
+                     Py_TYPE(other)->tp_name);
+        return NULL;
+    }
+    PyObject *result = rd_copy_method(op, NULL);
+    if (result == NULL) {
+        return NULL;
+    }
+    if (rd_extend_internal((ringdeque *)result, other, 0) < 0) {
+        Py_DECREF(result);
+        return NULL;
+    }
+    return result;
+}
+
+static PyObject *
+rd_inplace_concat(PyObject *op, PyObject *other)
+{
+    if (rd_extend_internal((ringdeque *)op, other, 0) < 0) {
+        return NULL;
+    }
+    return Py_NewRef(op);
+}
+
+static int
+rd_repeat_into(ringdeque *self, Py_ssize_t n)
+{
+    /* Append (n-1) further copies of the current contents; n <= 0
+       clears.  Trimming for maxlen falls out of rd_push_back. */
+    if (n <= 0) {
+        PyObject *ignored = rd_clear_method((PyObject *)self, NULL);
+        Py_XDECREF(ignored);
+        return 0;
+    }
+    Py_ssize_t orig_size = self->size;
+    if (orig_size == 0 || n == 1) {
+        return 0;
+    }
+    PyObject *snapshot = PySequence_List((PyObject *)self);
+    if (snapshot == NULL) {
+        return -1;
+    }
+    for (Py_ssize_t rep = 1; rep < n; rep++) {
+        for (Py_ssize_t i = 0; i < orig_size; i++) {
+            int error;
+            PyObject *item = Py_NewRef(PyList_GET_ITEM(snapshot, i));
+            PyObject *old = rd_push_back(self, item, &error);
+            if (error) {
+                Py_DECREF(snapshot);
+                return -1;
+            }
+            Py_XDECREF(old);
+        }
+    }
+    Py_DECREF(snapshot);
+    return 0;
+}
+
+static PyObject *
+rd_repeat(PyObject *op, Py_ssize_t n)
+{
+    PyObject *result = rd_copy_method(op, NULL);
+    if (result == NULL) {
+        return NULL;
+    }
+    if (rd_repeat_into((ringdeque *)result, n) < 0) {
+        Py_DECREF(result);
+        return NULL;
+    }
+    return result;
+}
+
+static PyObject *
+rd_inplace_repeat(PyObject *op, Py_ssize_t n)
+{
+    if (rd_repeat_into((ringdeque *)op, n) < 0) {
+        return NULL;
+    }
+    return Py_NewRef(op);
+}
+
 static PyObject *
 rd_item(PyObject *op, Py_ssize_t index)
 {
@@ -1266,9 +1354,13 @@ static PyGetSetDef rd_getset[] = {
 
 static PySequenceMethods rd_as_sequence = {
     .sq_length = rd_len,
+    .sq_concat = rd_concat,
+    .sq_repeat = rd_repeat,
     .sq_item = rd_item,
     .sq_ass_item = rd_ass_item,
     .sq_contains = rd_contains,
+    .sq_inplace_concat = rd_inplace_concat,
+    .sq_inplace_repeat = rd_inplace_repeat,
 };
 
 static PyMappingMethods rd_as_mapping = {
