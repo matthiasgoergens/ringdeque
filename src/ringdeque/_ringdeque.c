@@ -26,6 +26,9 @@ typedef struct {
     PyObject_HEAD
     PyObject **items;       /* ring buffer, `allocated` slots (or NULL) */
     Py_ssize_t allocated;   /* slots in `items`                        */
+    Py_ssize_t mask;        /* allocated-1 if allocated is a power of
+                               two (always true for unbounded deques
+                               under doubling growth), else 0          */
     Py_ssize_t first;       /* physical index of logical element 0     */
     Py_ssize_t size;        /* number of live elements                 */
     Py_ssize_t maxlen;      /* -1 = unbounded                          */
@@ -46,6 +49,8 @@ static PyTypeObject ringdeque_iter_type;
 
 #define ringdeque_CheckExact(op) Py_IS_TYPE((op), &ringdeque_type)
 #define ringdeque_Check(op) PyObject_TypeCheck((op), &ringdeque_type)
+
+static inline void rd_set_mask(ringdeque *self);
 
 /* ------------------------------------------------------------------ */
 /* Ring core (transplanted)                                           */
@@ -252,6 +257,7 @@ rd_ensure_capacity(ringdeque *self, Py_ssize_t min_needed)
     PyMem_Free(self->items);
     self->items = new_items;
     self->allocated = new_allocated;
+    rd_set_mask(self);
     self->first = 0;
     return 0;
 }
@@ -266,6 +272,7 @@ rd_maybe_shrink(ringdeque *self)
         PyMem_Free(self->items);
         self->items = NULL;
         self->allocated = 0;
+        self->mask = 0;
         self->first = 0;
         return;
     }
@@ -285,6 +292,7 @@ rd_maybe_shrink(ringdeque *self)
     PyMem_Free(self->items);
     self->items = new_items;
     self->allocated = target;
+    rd_set_mask(self);
     self->first = 0;
 }
 
@@ -292,9 +300,19 @@ rd_maybe_shrink(ringdeque *self)
 /* Core mutations (no user code runs inside these)                    */
 /* ------------------------------------------------------------------ */
 
+static inline void
+rd_set_mask(ringdeque *self)
+{
+    Py_ssize_t a = self->allocated;
+    self->mask = (a > 0 && (a & (a - 1)) == 0) ? a - 1 : 0;
+}
+
 static inline Py_ssize_t
 rd_phys(ringdeque *self, Py_ssize_t logical)
 {
+    if (self->mask) {
+        return (self->first + logical) & self->mask;
+    }
     return wrap_index(self->first + logical, self->allocated);
 }
 
@@ -330,8 +348,10 @@ rd_push_front(ringdeque *self, PyObject *item, int *error)
         *error = 1;
         return NULL;
     }
-    self->first = wrap_index(self->first - 1 + self->allocated,
-                             self->allocated);
+    self->first = self->mask
+        ? ((self->first - 1) & self->mask)
+        : wrap_index(self->first - 1 + self->allocated,
+                     self->allocated);
     self->items[self->first] = item;
     self->size++;
     self->state++;
@@ -370,7 +390,9 @@ rd_pop_front(ringdeque *self)
     }
     PyObject *item = self->items[self->first];
     self->items[self->first] = NULL;
-    self->first = wrap_index(self->first + 1, self->allocated);
+    self->first = self->mask
+        ? ((self->first + 1) & self->mask)
+        : wrap_index(self->first + 1, self->allocated);
     self->size--;
     self->state++;
     rd_maybe_shrink(self);
@@ -491,6 +513,7 @@ rd_clear_method(PyObject *op, PyObject *Py_UNUSED(ignored))
     Py_ssize_t size = self->size;
     self->items = NULL;
     self->allocated = 0;
+    self->mask = 0;
     self->first = 0;
     self->size = 0;
     self->state++;

@@ -85,6 +85,15 @@ elif workload == "append_popleft_steady":
         for v in r:
             append(v); popleft()
     metrics["ns_per_op"] = calibrated(2 * ops, run_pass)
+elif workload == "rotate1_steady":
+    d = D(range(max(n, 1)))
+    ops = 10_000
+    r = range(ops)
+    def run_pass():
+        rotate = d.rotate
+        for _ in r:
+            rotate(1); rotate(-1)
+    metrics["ns_per_op"] = calibrated(2 * ops, run_pass)
 elif workload == "getitem_random":
     m = max(n, 1)
     d = D(range(m))
@@ -120,7 +129,7 @@ print(json.dumps({"metrics": metrics}))
 """
 
 WORKLOADS = ["append_only", "append_popleft_steady", "getitem_random",
-             "append_latency", "steady_maxlen_latency"]
+             "rotate1_steady", "append_latency", "steady_maxlen_latency"]
 
 
 def run_payload(spec, workload, n, seed):

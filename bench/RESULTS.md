@@ -77,3 +77,25 @@ upstream-CPython context where memory do-no-harm dominates.)
 
 Raw data: threeway*.tsv (slow-growth and doubling runs kept separate;
 never mix treatments in one file).
+
+## Addendum: pow2 mask fast path + rotate workload (2026-07-12)
+
+Unbounded capacities are always powers of two under doubling growth, so
+physical indexing takes `(first + i) & mask` there; bounded deques keep
+the general wrap (the maxlen + 1 clamp intentionally breaks the pow2
+invariant). Effect on the three-way medians: below cross-run
+resolution — run-to-run size-mixture variation dominates; no
+regression observed, no measured win claimed. (A dedicated
+mask-vs-no-mask two-arm block design would resolve it if it matters.)
+
+New `rotate1_steady` workload (within-run, tight CIs):
+
+| arm | ns/op vs stdlib |
+|---|---|
+| ring | **1.17** |
+| arraydeque | 1.83 |
+
+arraydeque implements rotate via pop/append loops; the ring moves one
+element circularly. Also notable this run: the ring's bounded-steady
+**max** latency measured 0.68x the stdlib's (CI [0.43, 0.99]) — at
+maxlen steady state the ring never allocates or copies at all.
